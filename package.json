@@ -1,0 +1,51 @@
+{
+  "name": "striders-forge-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Striders Forge card shop",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "migrate": "npm run build && node dist/scripts/migrate.js",
+    "db:migrate": "node dist/scripts/migrate.js",
+    "db:migrate:build": "npm run build && node dist/scripts/migrate.js",
+    "db:migrate:dev": "tsx src/scripts/migrate.ts",
+    "db:seed": "node dist/scripts/seed.js",
+    "db:seed:dev": "tsx src/scripts/seed.ts",
+    "sync:scryfall": "node dist/scripts/syncScryfall.js",
+    "sync:scryfall:dev": "tsx src/scripts/syncScryfall.ts"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "drizzle-orm": "^0.29.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "p-limit": "^3.1.0",
+    "pg": "^8.11.3",
+    "sharp": "^0.33.1",
+    "stripe": "^14.9.0",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.10.4",
+    "@types/pg": "^8.10.9",
+    "@types/uuid": "^9.0.7",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3"
+  }
+}

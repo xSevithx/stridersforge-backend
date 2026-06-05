@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.*
+*.log
+.git
+.gitignore
+README.md
+.DS_Store
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+data/card-images/*
+
