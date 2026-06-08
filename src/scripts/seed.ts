@@ -26,6 +26,7 @@ const seed = async () => {
     // Create default pricing config
     const pricingDefaults = [
       { name: 'single_card_price', description: 'Price per single card', value: '0.50' },
+      { name: 'foil_upcharge', description: 'Additional charge per card for foil finish', value: '2.00' },
       { name: 'deck_60_price', description: 'Flat price for a 60-card deck', value: '100.00' },
       { name: 'deck_100_price', description: 'Flat price for a 100-card deck (Commander)', value: '100.00' },
       { name: 'bulk_discount_threshold', description: 'Number of cards to trigger bulk discount', value: '20' },

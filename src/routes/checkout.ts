@@ -201,14 +201,19 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
   // Separate custom cards (use their individual price) from standard cards
   let customCardTotal = 0;
   let standardCardCount = 0;
+  let foilCardCount = 0;
   
   for (const item of items) {
     if (item.isCustom && item.price) {
-      // Custom cards use their configured price
       customCardTotal += parseFloat(item.price) * item.quantity;
+      if (item.finish === 'foil') {
+        foilCardCount += item.quantity;
+      }
     } else {
-      // Standard cards count toward bulk pricing
       standardCardCount += item.quantity;
+      if (item.finish === 'foil') {
+        foilCardCount += item.quantity;
+      }
     }
   }
   
@@ -218,7 +223,6 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
   let deckType: string | null = null;
 
   if (standardCardCount > 0) {
-    // Check if standard cards form a deck order
     if (standardCardCount === 60) {
       standardCardSubtotal = pricing['deck_60_price'] || 100;
       deckType = 'deck_60';
@@ -229,7 +233,6 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
       const singlePrice = pricing['single_card_price'] || 0.5;
       standardCardSubtotal = standardCardCount * singlePrice;
 
-      // Apply bulk discount for standard cards only
       const bulkThreshold = pricing['bulk_discount_threshold'] || 20;
       const bulkDiscountPercent = pricing['bulk_discount_percent'] || 10;
 
@@ -239,10 +242,14 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
     }
   }
 
+  // Foil upcharge
+  const foilUpcharge = pricing['foil_upcharge'] || 2;
+  const foilTotal = foilCardCount * foilUpcharge;
+
   const cardSubtotal = customCardTotal + standardCardSubtotal;
   const individualCardCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = bundleTotal + cardSubtotal + productTotal;
-  const total = bundleTotal + cardSubtotal - discount + productTotal;
+  const subtotal = bundleTotal + cardSubtotal + productTotal + foilTotal;
+  const total = bundleTotal + cardSubtotal - discount + productTotal + foilTotal;
   const totalCards = bundleCardCount + individualCardCount;
 
   return {
@@ -251,6 +258,9 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
     cardSubtotal: cardSubtotal.toFixed(2),
     customCardTotal: customCardTotal.toFixed(2),
     standardCardTotal: standardCardSubtotal.toFixed(2),
+    foilTotal: foilTotal.toFixed(2),
+    foilCardCount,
+    foilUpcharge,
     subtotal: subtotal.toFixed(2),
     discount: discount.toFixed(2),
     total: total.toFixed(2),

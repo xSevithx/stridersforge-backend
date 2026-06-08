@@ -295,6 +295,13 @@ const migrate = async () => {
       );
     `);
 
+    // Add foil_upcharge pricing config if not exists
+    await client.query(`
+      INSERT INTO pricing_config (name, description, value)
+      VALUES ('foil_upcharge', 'Additional charge per card for foil finish', '2.00')
+      ON CONFLICT (name) DO NOTHING;
+    `);
+
     await client.query('COMMIT');
     console.log('✅ Database migration completed successfully!');
   } catch (error) {
