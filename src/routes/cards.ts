@@ -1,13 +1,7 @@
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
 import { pool } from '../db/index.js';
 
 const router = Router();
-
-const SCRYFALL_SEARCH_URL = 'https://api.scryfall.com/cards/search';
-const SCRYFALL_DELAY_MS = 75;
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // GET /api/cards - List cards with pagination and filters
 // includeCustom=true will include custom proxy cards in results
@@ -409,7 +403,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/cards/import-search - Search Scryfall for multiple cards (all printings)
+// POST /api/cards/import-search - Search LOCAL database for multiple cards (all printings)
 router.post('/import-search', async (req: Request, res: Response) => {
   try {
     const { cards: cardList } = req.body as { cards: { name: string; quantity: number }[] };
@@ -431,67 +425,58 @@ router.post('/import-search', async (req: Request, res: Response) => {
         setName: string;
         collectorNumber: string;
         imageUri: string | null;
-        releasedAt?: string;
+        localImagePath: string | null;
       }>;
       error?: string;
     }> = [];
 
-    for (let i = 0; i < cardList.length; i++) {
-      const { name, quantity } = cardList[i];
+    for (const { name, quantity } of cardList) {
+      // Exact name match across all printings in our local DB
+      const result = await pool.query(`
+        SELECT scryfall_id, set_code, set_name, collector_number, image_url, local_image_path
+        FROM cards
+        WHERE LOWER(name) = LOWER($1) AND is_active = true
+        ORDER BY created_at DESC
+      `, [name.trim()]);
 
-      if (i > 0) {
-        await sleep(SCRYFALL_DELAY_MS);
-      }
-
-      try {
-        const response = await axios.get(SCRYFALL_SEARCH_URL, {
-          params: {
-            q: `!"${name}"`,
-            unique: 'prints',
-            order: 'released',
-            dir: 'desc',
-          },
-          timeout: 10000,
+      if (result.rows.length > 0) {
+        results.push({
+          name,
+          quantity,
+          printings: result.rows.map(row => ({
+            scryfallId: row.scryfall_id,
+            setCode: row.set_code || '',
+            setName: row.set_name || '',
+            collectorNumber: row.collector_number || '',
+            imageUri: row.image_url,
+            localImagePath: row.local_image_path,
+          })),
         });
+      } else {
+        // Try fuzzy match (ILIKE) if exact match fails
+        const fuzzyResult = await pool.query(`
+          SELECT DISTINCT ON (set_code, collector_number)
+            scryfall_id, set_code, set_name, collector_number, image_url, local_image_path, name
+          FROM cards
+          WHERE name ILIKE $1 AND is_active = true
+          ORDER BY set_code, collector_number, created_at DESC
+        `, [`%${name.trim()}%`]);
 
-        const printings = (response.data.data || [])
-          .filter((card: any) => card.lang === 'en' && !card.digital)
-          .map((card: any) => ({
-            scryfallId: card.id,
-            setCode: card.set,
-            setName: card.set_name,
-            collectorNumber: card.collector_number,
-            imageUri: card.image_uris?.normal ||
-              card.card_faces?.[0]?.image_uris?.normal || null,
-            releasedAt: card.released_at,
-          }));
-
-        results.push({ name, quantity, printings });
-
-        // Handle paginated results (Scryfall returns has_more + next_page)
-        let nextPage = response.data.has_more ? response.data.next_page : null;
-        while (nextPage) {
-          await sleep(SCRYFALL_DELAY_MS);
-          const pageResponse = await axios.get(nextPage, { timeout: 10000 });
-          const morePrintings = (pageResponse.data.data || [])
-            .filter((card: any) => card.lang === 'en' && !card.digital)
-            .map((card: any) => ({
-              scryfallId: card.id,
-              setCode: card.set,
-              setName: card.set_name,
-              collectorNumber: card.collector_number,
-              imageUri: card.image_uris?.normal ||
-                card.card_faces?.[0]?.image_uris?.normal || null,
-              releasedAt: card.released_at,
-            }));
-          results[results.length - 1].printings.push(...morePrintings);
-          nextPage = pageResponse.data.has_more ? pageResponse.data.next_page : null;
-        }
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          results.push({ name, quantity, printings: [], error: 'Card not found' });
+        if (fuzzyResult.rows.length > 0) {
+          results.push({
+            name: fuzzyResult.rows[0].name,
+            quantity,
+            printings: fuzzyResult.rows.map(row => ({
+              scryfallId: row.scryfall_id,
+              setCode: row.set_code || '',
+              setName: row.set_name || '',
+              collectorNumber: row.collector_number || '',
+              imageUri: row.image_url,
+              localImagePath: row.local_image_path,
+            })),
+          });
         } else {
-          results.push({ name, quantity, printings: [], error: 'Search failed' });
+          results.push({ name, quantity, printings: [], error: 'Card not found' });
         }
       }
     }
