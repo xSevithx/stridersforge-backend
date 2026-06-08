@@ -20,6 +20,7 @@ services:
     volumes:
       - card-images:/app/data/card-images
       - uploads:/app/data/uploads
+      - custom-cards:/app/data/custom-cards
     depends_on:
       db:
         condition: service_healthy
@@ -48,6 +49,7 @@ volumes:
   postgres-data:
   card-images:
   uploads:
+  custom-cards:
 
 networks:
   striderforge-network:

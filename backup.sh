@@ -104,7 +104,19 @@ do_backup() {
     }
   }
 
-  # 5) Write metadata
+  # 5) Backup custom-cards volume
+  log "Backing up custom-cards volume..."
+  local volume_prefix
+  volume_prefix="$(basename "${SCRIPT_DIR}")"
+  docker run --rm \
+    -v "${volume_prefix}_custom-cards:/source:ro" \
+    -v "${backup_subdir}:/backup" \
+    alpine tar czf /backup/custom-cards.tar.gz -C /source . 2>/dev/null || {
+    warn "Could not backup custom-cards volume (may be empty or volume name differs)."
+    warn "Check volume name with: docker volume ls | grep custom-cards"
+  }
+
+  # 6) Write metadata
   cat > "${backup_subdir}/metadata.json" <<METAEOF
 {
   "timestamp": "${timestamp}",
@@ -116,12 +128,13 @@ do_backup() {
     "database.dump",
     "database.sql",
     "card-images.tar.gz",
-    "uploads.tar.gz"
+    "uploads.tar.gz",
+    "custom-cards.tar.gz"
   ]
 }
 METAEOF
 
-  # 6) Prune old backups
+  # 7) Prune old backups
   local backup_count
   backup_count=$(find "${BACKUP_DIR}" -mindepth 1 -maxdepth 1 -type d | wc -l)
   if (( backup_count > MAX_BACKUPS )); then
@@ -221,6 +234,22 @@ do_restore() {
     }
   else
     warn "No uploads.tar.gz found, skipping volume restore."
+  fi
+
+  # 4) Restore custom-cards volume
+  local custom_cards_archive="${backup_path}/custom-cards.tar.gz"
+  if [[ -f "$custom_cards_archive" ]]; then
+    log "Restoring custom-cards volume..."
+    local volume_prefix
+    volume_prefix="$(basename "${SCRIPT_DIR}")"
+    docker run --rm \
+      -v "${volume_prefix}_custom-cards:/target" \
+      -v "${backup_path}:/backup:ro" \
+      alpine sh -c "rm -rf /target/* && tar xzf /backup/custom-cards.tar.gz -C /target" 2>/dev/null || {
+      warn "Could not restore custom-cards volume. You may need to restore manually."
+    }
+  else
+    warn "No custom-cards.tar.gz found, skipping volume restore."
   fi
 
   log "${GREEN}Restore complete!${NC}"

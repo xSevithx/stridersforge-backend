@@ -37,7 +37,7 @@ RUN npm ci --only=production && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Create data directories
-RUN mkdir -p /app/data/card-images /app/data/uploads && \
+RUN mkdir -p /app/data/card-images /app/data/uploads /app/data/custom-cards && \
     chown -R nodejs:nodejs /app/data
 
 # Switch to non-root user
