@@ -164,6 +164,20 @@ export const customCards = pgTable('custom_cards', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+// Custom Products table (non-card items for sale)
+export const customProducts = pgTable('custom_products', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  imagePath: text('image_path'),
+  price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  stockQuantity: integer('stock_quantity'), // null = unlimited
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 // Pending Checkouts table (temporary storage for cart data during Stripe checkout)
 export const pendingCheckouts = pgTable('pending_checkouts', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -190,6 +204,8 @@ export type BundleItem = typeof bundleItems.$inferSelect;
 export type NewBundleItem = typeof bundleItems.$inferInsert;
 export type CustomCard = typeof customCards.$inferSelect;
 export type NewCustomCard = typeof customCards.$inferInsert;
+export type CustomProduct = typeof customProducts.$inferSelect;
+export type NewCustomProduct = typeof customProducts.$inferInsert;
 export type PendingCheckout = typeof pendingCheckouts.$inferSelect;
 export type NewPendingCheckout = typeof pendingCheckouts.$inferInsert;
 

@@ -1,7 +1,13 @@
 import { Router, Request, Response } from 'express';
+import axios from 'axios';
 import { pool } from '../db/index.js';
 
 const router = Router();
+
+const SCRYFALL_SEARCH_URL = 'https://api.scryfall.com/cards/search';
+const SCRYFALL_DELAY_MS = 75;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // GET /api/cards - List cards with pagination and filters
 // includeCustom=true will include custom proxy cards in results
@@ -400,6 +406,100 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching card:', error);
     res.status(500).json({ error: 'Failed to fetch card' });
+  }
+});
+
+// POST /api/cards/import-search - Search Scryfall for multiple cards (all printings)
+router.post('/import-search', async (req: Request, res: Response) => {
+  try {
+    const { cards: cardList } = req.body as { cards: { name: string; quantity: number }[] };
+
+    if (!cardList || !Array.isArray(cardList) || cardList.length === 0) {
+      return res.status(400).json({ error: 'cards array is required' });
+    }
+
+    if (cardList.length > 200) {
+      return res.status(400).json({ error: 'Maximum 200 unique cards per request' });
+    }
+
+    const results: Array<{
+      name: string;
+      quantity: number;
+      printings: Array<{
+        scryfallId: string;
+        setCode: string;
+        setName: string;
+        collectorNumber: string;
+        imageUri: string | null;
+        releasedAt?: string;
+      }>;
+      error?: string;
+    }> = [];
+
+    for (let i = 0; i < cardList.length; i++) {
+      const { name, quantity } = cardList[i];
+
+      if (i > 0) {
+        await sleep(SCRYFALL_DELAY_MS);
+      }
+
+      try {
+        const response = await axios.get(SCRYFALL_SEARCH_URL, {
+          params: {
+            q: `!"${name}"`,
+            unique: 'prints',
+            order: 'released',
+            dir: 'desc',
+          },
+          timeout: 10000,
+        });
+
+        const printings = (response.data.data || [])
+          .filter((card: any) => card.lang === 'en' && !card.digital)
+          .map((card: any) => ({
+            scryfallId: card.id,
+            setCode: card.set,
+            setName: card.set_name,
+            collectorNumber: card.collector_number,
+            imageUri: card.image_uris?.normal ||
+              card.card_faces?.[0]?.image_uris?.normal || null,
+            releasedAt: card.released_at,
+          }));
+
+        results.push({ name, quantity, printings });
+
+        // Handle paginated results (Scryfall returns has_more + next_page)
+        let nextPage = response.data.has_more ? response.data.next_page : null;
+        while (nextPage) {
+          await sleep(SCRYFALL_DELAY_MS);
+          const pageResponse = await axios.get(nextPage, { timeout: 10000 });
+          const morePrintings = (pageResponse.data.data || [])
+            .filter((card: any) => card.lang === 'en' && !card.digital)
+            .map((card: any) => ({
+              scryfallId: card.id,
+              setCode: card.set,
+              setName: card.set_name,
+              collectorNumber: card.collector_number,
+              imageUri: card.image_uris?.normal ||
+                card.card_faces?.[0]?.image_uris?.normal || null,
+              releasedAt: card.released_at,
+            }));
+          results[results.length - 1].printings.push(...morePrintings);
+          nextPage = pageResponse.data.has_more ? pageResponse.data.next_page : null;
+        }
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          results.push({ name, quantity, printings: [], error: 'Card not found' });
+        } else {
+          results.push({ name, quantity, printings: [], error: 'Search failed' });
+        }
+      }
+    }
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Error in import-search:', error);
+    res.status(500).json({ error: 'Failed to search cards' });
   }
 });
 

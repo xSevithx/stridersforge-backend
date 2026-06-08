@@ -37,6 +37,14 @@ interface CartBundle {
   }>;
 }
 
+interface CartProduct {
+  productId: string;
+  productName: string;
+  productPrice: string;
+  quantity: number;
+  imagePath?: string;
+}
+
 interface PendingOrderItem {
   cardId?: string | null;
   customCardId?: string | null;
@@ -169,8 +177,8 @@ const calculateTotals = async (items: CartItem[]) => {
   };
 };
 
-// Calculate cart totals with bundles
-const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle[]) => {
+// Calculate cart totals with bundles and products
+const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle[], products: CartProduct[] = []) => {
   const pricing = await getPricing();
   
   // Calculate bundle totals
@@ -182,6 +190,12 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
     if (bundle.items) {
       bundleCardCount += bundle.items.reduce((sum, item) => sum + item.quantity, 0) * bundle.quantity;
     }
+  }
+
+  // Calculate product totals
+  let productTotal = 0;
+  for (const product of products) {
+    productTotal += parseFloat(product.productPrice) * product.quantity;
   }
 
   // Separate custom cards (use their individual price) from standard cards
@@ -227,12 +241,13 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
 
   const cardSubtotal = customCardTotal + standardCardSubtotal;
   const individualCardCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = bundleTotal + cardSubtotal;
-  const total = bundleTotal + cardSubtotal - discount;
+  const subtotal = bundleTotal + cardSubtotal + productTotal;
+  const total = bundleTotal + cardSubtotal - discount + productTotal;
   const totalCards = bundleCardCount + individualCardCount;
 
   return {
     bundleTotal: bundleTotal.toFixed(2),
+    productTotal: productTotal.toFixed(2),
     cardSubtotal: cardSubtotal.toFixed(2),
     customCardTotal: customCardTotal.toFixed(2),
     standardCardTotal: standardCardSubtotal.toFixed(2),
@@ -306,20 +321,22 @@ router.post('/create-session', async (req: Request, res: Response) => {
       });
     }
 
-    const { items = [], bundles = [], customerEmail } = req.body as {
+    const { items = [], bundles = [], products = [], customerEmail } = req.body as {
       items?: CartItem[];
       bundles?: CartBundle[];
+      products?: CartProduct[];
       customerEmail?: string;
     };
 
     const hasItems = items.length > 0;
     const hasBundles = bundles.length > 0;
+    const hasProducts = products.length > 0;
 
-    if (!hasItems && !hasBundles) {
-      return res.status(400).json({ error: 'Items or bundles are required' });
+    if (!hasItems && !hasBundles && !hasProducts) {
+      return res.status(400).json({ error: 'Items, bundles, or products are required' });
     }
 
-    const totals = await calculateTotalsWithBundles(items, bundles);
+    const totals = await calculateTotalsWithBundles(items, bundles, products);
 
     // Build description
     const descriptionParts: string[] = [];
@@ -335,6 +352,10 @@ router.post('/create-session', async (req: Request, res: Response) => {
       } else if (totals.individualCardCount > 0) {
         descriptionParts.push(`${totals.individualCardCount} Card${totals.individualCardCount > 1 ? 's' : ''}`);
       }
+    }
+    if (hasProducts) {
+      const productCount = products.reduce((sum, p) => sum + p.quantity, 0);
+      descriptionParts.push(`${productCount} Product${productCount > 1 ? 's' : ''}`);
     }
     const description = descriptionParts.join(' + ') || `${totals.totalCards} Cards`;
 
@@ -390,6 +411,23 @@ router.post('/create-session', async (req: Request, res: Response) => {
       }
     }
 
+    // Add products as order items
+    for (const product of products) {
+      allOrderItems.push({
+        cardId: null,
+        customCardId: null,
+        isCustom: false,
+        cardName: `[Product] ${product.productName}`,
+        cardSetCode: '',
+        cardImagePath: product.imagePath || '',
+        quantity: product.quantity,
+        pricePerCard: parseFloat(product.productPrice).toFixed(2),
+        totalPrice: (parseFloat(product.productPrice) * product.quantity).toFixed(2),
+        fromBundle: null,
+        finish: 'nonfoil',
+      });
+    }
+
     const cartData = {
       items: allOrderItems,
       bundles: bundles.map(b => ({
@@ -397,6 +435,12 @@ router.post('/create-session', async (req: Request, res: Response) => {
         bundleName: b.bundleName,
         bundlePrice: b.bundlePrice,
         quantity: b.quantity,
+      })),
+      products: products.map(p => ({
+        productId: p.productId,
+        productName: p.productName,
+        productPrice: p.productPrice,
+        quantity: p.quantity,
       })),
       subtotal: totals.subtotal,
       discount: totals.discount,

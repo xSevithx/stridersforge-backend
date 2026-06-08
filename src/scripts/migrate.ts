@@ -279,6 +279,22 @@ const migrate = async () => {
         ADD COLUMN IF NOT EXISTS finish VARCHAR(10) NOT NULL DEFAULT 'nonfoil';
     `);
 
+    // Create custom_products table for non-card items
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        image_path TEXT,
+        price DECIMAL(10, 2) NOT NULL,
+        stock_quantity INTEGER,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
     await client.query('COMMIT');
     console.log('✅ Database migration completed successfully!');
   } catch (error) {
