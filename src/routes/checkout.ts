@@ -17,7 +17,7 @@ interface CartItem {
   quantity: number;
   isCustom?: boolean;
   price?: string;
-  finish?: 'nonfoil' | 'foil';
+  finish?: string; // 'nonfoil' or a foil option slug
 }
 
 interface CartBundle {
@@ -56,7 +56,7 @@ interface PendingOrderItem {
   pricePerCard: string;
   totalPrice: string;
   fromBundle?: string | null;
-  finish?: 'nonfoil' | 'foil';
+  finish?: string; // 'nonfoil' or foil option slug
 }
 
 /** Map cart line items to valid FK refs; always keep denormalized name/image on the row. */
@@ -115,6 +115,15 @@ const getPricing = async () => {
   const result = await pool.query('SELECT name, value FROM pricing_config WHERE is_active = true');
   return result.rows.reduce((acc, row) => {
     acc[row.name] = parseFloat(row.value);
+    return acc;
+  }, {} as Record<string, number>);
+};
+
+// Get foil options from database (slug -> upcharge)
+const getFoilUpcharges = async (): Promise<Record<string, number>> => {
+  const result = await pool.query('SELECT slug, upcharge FROM foil_options WHERE is_active = true');
+  return result.rows.reduce((acc, row) => {
+    acc[row.slug] = parseFloat(row.upcharge);
     return acc;
   }, {} as Record<string, number>);
 };
@@ -180,13 +189,13 @@ const calculateTotals = async (items: CartItem[]) => {
 // Calculate cart totals with bundles and products
 const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle[], products: CartProduct[] = []) => {
   const pricing = await getPricing();
+  const foilUpcharges = await getFoilUpcharges();
   
   // Calculate bundle totals
   let bundleTotal = 0;
   let bundleCardCount = 0;
   for (const bundle of bundles) {
     bundleTotal += parseFloat(bundle.bundlePrice) * bundle.quantity;
-    // Count cards in bundles (we need to look up the bundle to get card count)
     if (bundle.items) {
       bundleCardCount += bundle.items.reduce((sum, item) => sum + item.quantity, 0) * bundle.quantity;
     }
@@ -202,18 +211,19 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
   let customCardTotal = 0;
   let standardCardCount = 0;
   let foilCardCount = 0;
+  let foilTotal = 0;
   
   for (const item of items) {
     if (item.isCustom && item.price) {
       customCardTotal += parseFloat(item.price) * item.quantity;
-      if (item.finish === 'foil') {
-        foilCardCount += item.quantity;
-      }
     } else {
       standardCardCount += item.quantity;
-      if (item.finish === 'foil') {
-        foilCardCount += item.quantity;
-      }
+    }
+    // Calculate per-option foil upcharges
+    if (item.finish && item.finish !== 'nonfoil') {
+      const upcharge = foilUpcharges[item.finish] ?? pricing['foil_upcharge'] ?? 0;
+      foilTotal += upcharge * item.quantity;
+      foilCardCount += item.quantity;
     }
   }
   
@@ -242,10 +252,6 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
     }
   }
 
-  // Foil upcharge
-  const foilUpcharge = pricing['foil_upcharge'] || 2;
-  const foilTotal = foilCardCount * foilUpcharge;
-
   const cardSubtotal = customCardTotal + standardCardSubtotal;
   const individualCardCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = bundleTotal + cardSubtotal + productTotal + foilTotal;
@@ -260,7 +266,6 @@ const calculateTotalsWithBundles = async (items: CartItem[], bundles: CartBundle
     standardCardTotal: standardCardSubtotal.toFixed(2),
     foilTotal: foilTotal.toFixed(2),
     foilCardCount,
-    foilUpcharge,
     subtotal: subtotal.toFixed(2),
     discount: discount.toFixed(2),
     total: total.toFixed(2),

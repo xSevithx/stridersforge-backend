@@ -276,7 +276,13 @@ const migrate = async () => {
     // Add finish column to order_items for foil/non-foil tracking
     await client.query(`
       ALTER TABLE order_items
-        ADD COLUMN IF NOT EXISTS finish VARCHAR(10) NOT NULL DEFAULT 'nonfoil';
+        ADD COLUMN IF NOT EXISTS finish VARCHAR(100) NOT NULL DEFAULT 'nonfoil';
+    `);
+
+    // Widen finish column if it was previously created as VARCHAR(10)
+    await client.query(`
+      ALTER TABLE order_items
+        ALTER COLUMN finish TYPE VARCHAR(100);
     `);
 
     // Create custom_products table for non-card items
@@ -295,11 +301,32 @@ const migrate = async () => {
       );
     `);
 
-    // Add foil_upcharge pricing config if not exists
+    // Add foil_upcharge pricing config if not exists (legacy, kept for fallback)
     await client.query(`
       INSERT INTO pricing_config (name, description, value)
       VALUES ('foil_upcharge', 'Additional charge per card for foil finish', '2.00')
       ON CONFLICT (name) DO NOTHING;
+    `);
+
+    // Create foil_options table for multiple configurable foil types
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS foil_options (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(100) NOT NULL UNIQUE,
+        upcharge DECIMAL(10, 2) NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Seed default foil option if table is empty
+    await client.query(`
+      INSERT INTO foil_options (name, slug, upcharge, sort_order)
+      SELECT 'Regular Foil', 'regular-foil', 2.00, 0
+      WHERE NOT EXISTS (SELECT 1 FROM foil_options);
     `);
 
     await client.query('COMMIT');

@@ -14,6 +14,7 @@ import checkoutRoutes from './routes/checkout.js';
 import bundlesRoutes from './routes/bundles.js';
 import customCardsRoutes from './routes/customCards.js';
 import productsRoutes from './routes/products.js';
+import foilOptionsRoutes from './routes/foilOptions.js';
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/bundles', bundlesRoutes);
 app.use('/api/custom-cards', customCardsRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/foil-options', foilOptionsRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

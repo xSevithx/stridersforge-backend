@@ -84,7 +84,7 @@ export const orderItems = pgTable('order_items', {
   quantity: integer('quantity').notNull().default(1),
   pricePerCard: decimal('price_per_card', { precision: 10, scale: 2 }).notNull(),
   totalPrice: decimal('total_price', { precision: 10, scale: 2 }).notNull(),
-  finish: varchar('finish', { length: 10 }).notNull().default('nonfoil'),
+  finish: varchar('finish', { length: 100 }).notNull().default('nonfoil'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
