@@ -377,12 +377,36 @@ router.post('/create-session', async (req: Request, res: Response) => {
     // Store cart data for webhook (including bundle items expanded)
     const allOrderItems: any[] = [];
 
-    // Add individual cards
-    for (const item of items) {
-      const pricePerCard = totals.individualCardCount > 0 
-        ? (parseFloat(totals.cardSubtotal) / totals.individualCardCount) 
+    // Compute per-card base price for standard cards
+    let standardPricePerCard = totals.pricing['single_card_price'] || 0.5;
+    if (totals.deckType === 'deck_60' || totals.deckType === 'deck_100') {
+      const deckPrice = totals.deckType === 'deck_60'
+        ? (totals.pricing['deck_60_price'] || 100)
+        : (totals.pricing['deck_100_price'] || 100);
+      standardPricePerCard = totals.standardCardCount > 0
+        ? deckPrice / totals.standardCardCount
         : 0;
+    } else if (parseFloat(totals.discount) > 0 && totals.standardCardCount > 0) {
+      standardPricePerCard = (parseFloat(totals.standardCardTotal)) / totals.standardCardCount;
+    }
+
+    const foilUpcharges = await getFoilUpcharges();
+
+    // Add individual cards with properly attributed prices
+    for (const item of items) {
       const isCustom = !!item.isCustom;
+      let basePerCard: number;
+      if (isCustom && item.price) {
+        basePerCard = parseFloat(item.price);
+      } else {
+        basePerCard = standardPricePerCard;
+      }
+
+      const foilUpcharge = (item.finish && item.finish !== 'nonfoil')
+        ? (foilUpcharges[item.finish] ?? 0)
+        : 0;
+      const pricePerCard = basePerCard + foilUpcharge;
+
       allOrderItems.push({
         cardId: isCustom ? null : item.cardId,
         customCardId: isCustom ? item.cardId : null,
