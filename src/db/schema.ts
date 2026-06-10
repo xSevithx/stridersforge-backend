@@ -187,6 +187,25 @@ export const pendingCheckouts = pgTable('pending_checkouts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+// Leads table (contact form submissions)
+export const leadStatusEnum = pgEnum('lead_status', [
+  'new',
+  'contacted',
+  'closed'
+]);
+
+export const leads = pgTable('leads', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  subject: varchar('subject', { length: 255 }),
+  message: text('message').notNull(),
+  status: leadStatusEnum('status').notNull().default('new'),
+  adminNotes: text('admin_notes'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 // Types
 export type Card = typeof cards.$inferSelect;
 export type NewCard = typeof cards.$inferInsert;
@@ -208,4 +227,6 @@ export type CustomProduct = typeof customProducts.$inferSelect;
 export type NewCustomProduct = typeof customProducts.$inferInsert;
 export type PendingCheckout = typeof pendingCheckouts.$inferSelect;
 export type NewPendingCheckout = typeof pendingCheckouts.$inferInsert;
+export type Lead = typeof leads.$inferSelect;
+export type NewLead = typeof leads.$inferInsert;
 

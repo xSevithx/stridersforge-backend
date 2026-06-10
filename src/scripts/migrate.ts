@@ -329,6 +329,37 @@ const migrate = async () => {
       WHERE NOT EXISTS (SELECT 1 FROM foil_options);
     `);
 
+    // Create lead_status enum
+    await client.query(`
+      DO $$ BEGIN
+        CREATE TYPE lead_status AS ENUM ('new', 'contacted', 'closed');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `);
+
+    // Create leads table for contact form submissions
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        subject VARCHAR(255),
+        message TEXT NOT NULL,
+        status lead_status NOT NULL DEFAULT 'new',
+        admin_notes TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    // Create indexes on leads
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+      CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);
+      CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);
+    `);
+
     await client.query('COMMIT');
     console.log('✅ Database migration completed successfully!');
   } catch (error) {
