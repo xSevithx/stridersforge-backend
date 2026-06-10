@@ -206,7 +206,20 @@ export const leads = pgTable('leads', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+// FAQs table (admin-managed FAQ entries)
+export const faqs = pgTable('faqs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
 // Types
+export type FAQ = typeof faqs.$inferSelect;
+export type NewFAQ = typeof faqs.$inferInsert;
 export type Card = typeof cards.$inferSelect;
 export type NewCard = typeof cards.$inferInsert;
 export type Order = typeof orders.$inferSelect;

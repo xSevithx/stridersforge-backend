@@ -16,6 +16,7 @@ import customCardsRoutes from './routes/customCards.js';
 import productsRoutes from './routes/products.js';
 import foilOptionsRoutes from './routes/foilOptions.js';
 import leadsRoutes from './routes/leads.js';
+import faqsRoutes from './routes/faqs.js';
 
 const app = express();
 
@@ -84,6 +85,7 @@ app.use('/api/custom-cards', customCardsRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/foil-options', foilOptionsRoutes);
 app.use('/api/leads', leadsRoutes);
+app.use('/api/faqs', faqsRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
